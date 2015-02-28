@@ -10,7 +10,7 @@ RUN apt-get install -y module-init-tools
 ADD resources/ /tmp/
 
 # install video driver
-RUN bash /tmp/video-driver-install
+RUN test -f /tmp/video-driver-install && bash /tmp/video-driver-install || echo "*****ERROR***** skipped driver install"
 
 # clean up resources
 RUN rm -fr /tmp/*
