@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -42,30 +43,29 @@ fi
 
 IMAGE=$(cat resources/image-name)
 
-nvidia_version=$(cat /proc/driver/nvidia/version | head -n 1 | awk '{ print $8 }')
+ati_version=$(dmesg | dmesg | awk '/fglrx.*module/ { print $8  }')
 
-if [ -z $nvidia_version ]; then
-    echo "Must be run on linux with nvidia hardware!"
-    exit 3
-else
-    video_driver_uri=http://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/NVIDIA-Linux-x86_64-${nvidia_version}.run
-    video_driver_run_cmd="exec sh /tmp/video-driver-pkg -a -N --ui=none --no-kernel-module"
+if [ -z $ati_version ]; then
+    echo "Must be run on linux with ati hardware!"
+    # exit 1
 fi
 
-if [ ! -f resources/video-driver-pkg  ]; then
-    if ! hash curl >/dev/null; then
-        echo "Error: curl not found. Please install it first"
-        echo
-        exit 1
-    fi
-    curl -o resources/video-driver-pkg $video_driver_uri
+current_ati_packages=$(dpkg -l | awk '/fglrx/ {print $2}')
+
+if [ -z "$current_ati_packages" ]; then
+    echo "Must have installed the fglrx-* ati packages locally."
+    # exit 1
 fi
 
-if [ ! -f resources/video-driver-install ]; then
-    echo $video_driver_run_cmd > resources/video-driver-install
-    chmod 755 resources/video-driver-install
+if [ -z "$(ls -A resources/ati/*.deb 2>/dev/null)"  ]; then
+    apt-get -d --reinstall install $current_ati_packages
+    cp /var/cache/apt/archives/fglrx* resources/ati
 fi
 
+rm -f resources/video-driver-install
+for deb in resources/ati/*.deb; do
+    echo dpkg-deb -x /tmp/ati/$(basename $deb) / >> resources/video-driver-install
+done
 
 echo "building $IMAGE image ..."
 sudo docker build --rm=true -t $IMAGE $* .
